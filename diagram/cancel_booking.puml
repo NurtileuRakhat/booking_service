@@ -1,0 +1,52 @@
+@startuml
+skin rose
+participant "Клиент" as CLIENT
+participant "API" as API
+participant "BookingService" as BSERVICE
+participant "BookingRepo" as BREPO
+participant "Database" as DB
+participant "GoogleCalendarService" as GCAL
+participant "TelegramBot" as TG
+autonumber
+
+CLIENT ->> API: DELETE /api/v1/bookings/{id}
+API ->> API: Аутентификация (JWT)
+note right of API: Извлечение user_id из токена
+
+alt Неавторизован
+    API -->> CLIENT: 401 Unauthorized
+else Авторизован
+    API ->> BSERVICE: CancelBooking(bookingID, userID)
+    BSERVICE ->> BREPO: GetBookingByID(bookingID)
+    BREPO ->> DB: SELECT * FROM bookings WHERE id = ?
+    DB -->> BREPO: Booking
+    BREPO -->> BSERVICE: Booking
+
+    alt Бронирование не найдено
+        BSERVICE -->> API: Ошибка: бронирование не найдено
+        API -->> CLIENT: 404 Not Found
+    else Бронирование найдено
+        alt Пользователь не владелец
+            BSERVICE -->> API: Ошибка: нет прав
+            API -->> CLIENT: 403 Forbidden
+        else Бронирование принадлежит пользователю
+            BSERVICE ->> DB: BEGIN transaction
+            BSERVICE ->> BREPO: UpdateStatus(bookingID, "cancelled")
+            BREPO ->> DB: UPDATE bookings SET status = 'cancelled' WHERE id = ?
+            DB -->> BREPO: OK
+
+            alt Есть Google Calendar Event ID
+                BSERVICE ->> GCAL: DeleteEvent(booking.GoogleCalendarEventID)
+                GCAL -->> BSERVICE: OK
+            end
+
+            BSERVICE ->> TG: SendCancellationNotification(userID, bookingData)
+            TG -->> BSERVICE: OK
+
+            BSERVICE ->> DB: COMMIT
+            BSERVICE -->> API: Успех
+            API -->> CLIENT: 200 OK
+        end
+    end
+end
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+skin rose
+participant "Клиент" as CLIENT
+participant "API" as API
+participant "BookingService" as BSERVICE
+participant "WorkspaceRepo" as WREPO
+participant "BookingRepo" as BREPO
+participant "Database" as DB
+participant "GoogleCalendarService" as GCAL
+participant "TelegramBot" as TG
+autonumber
+
+CLIENT ->> API: POST /api/v1/bookings\n{user_id, workspace_id, start_time, end_time}
+note right of CLIENT
+    Request Body: CreateBookingReq
+    {
+      "workspace_id": int64,
+      "start_time": timestamp,
+      "end_time": timestamp,
+    }
+end note
+
+API ->> API: Аутентификация (через JWT)
+note right of API: Извлечение user_id из токена
+
+alt Неавторизован
+    API -->> CLIENT: 401 Unauthorized
+else Авторизован
+    API ->> BSERVICE: CreateBooking(userID, workspaceID, startTime, endTime)
+    BSERVICE ->> WREPO: GetWorkspaceByID(workspaceID)
+    WREPO ->> DB: SELECT * FROM workspaces WHERE id = ?
+    DB -->> WREPO: Workspace
+    WREPO -->> BSERVICE: Workspace (с hourly_rate)
+
+    BSERVICE ->> BSERVICE: Расчет цены (hourlyRate * hours)
+
+    BSERVICE ->> BREPO: CheckAvailability(workspaceID, startTime, endTime)
+    BREPO ->> DB: SELECT * FROM bookings WHERE workspace_id = ? AND ...
+    DB -->> BREPO: Конфликтующие бронирования
+    BREPO -->> BSERVICE: Результат проверки
+
+    alt Время занято
+        BSERVICE -->> API: Ошибка: временной конфликт
+        API -->> CLIENT: 409 Conflict
+    else Время свободно
+        BSERVICE ->> DB: BEGIN transaction
+        BSERVICE ->> BREPO: CreateBooking(booking)
+        BREPO ->> DB: INSERT INTO bookings ...
+        DB -->> BREPO: booking_id
+        BREPO -->> BSERVICE: ID нового бронирования
+
+        BSERVICE ->> GCAL: CreateEvent(userID, bookingData)
+        GCAL ->> GCAL: Использование Google Calendar API
+        GCAL -->> BSERVICE: eventID
+
+        BSERVICE ->> BREPO: UpdateGoogleCalendarEventID(bookingID, eventID)
+        BREPO ->> DB: UPDATE bookings SET google_calendar_event_id = ?
+        DB -->> BREPO: OK
+
+        BSERVICE ->> TG: SendNotification(userID, bookingData)
+        TG -->> BSERVICE: OK
+
+        BSERVICE ->> DB: COMMIT
+        BSERVICE -->> API: Booking
+        API -->> CLIENT: 201 Created + booking data
+    end
+end
+@enduml

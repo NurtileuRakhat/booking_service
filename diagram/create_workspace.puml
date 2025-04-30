@@ -1,0 +1,46 @@
+@startuml
+skin rose
+participant "Клиент" as CLIENT
+participant "API" as API
+participant "WorkspaceService" as WSERVICE
+participant "WorkspaceRepo" as WREPO
+participant "Database" as DB
+autonumber
+
+CLIENT ->> API: POST /api/v1/workspaces
+note right of CLIENT
+    Request Body: CreateWorkspaceReq
+    {
+      "name": string,
+      "type": string,
+      "hourly_rate": float64,
+      "description": string,
+      "capacity": int
+    }
+end note
+
+API ->> API: Аутентификация администратора
+note right of API: Проверка прав администратора
+
+alt Нет прав администратора
+    API -->> CLIENT: 403 Forbidden
+else Есть права администратора
+    API ->> WSERVICE: CreateWorkspace(name, type, hourlyRate, description, capacity)
+
+    WSERVICE ->> WSERVICE: Валидация данных
+
+    alt Невалидные данные
+        WSERVICE -->> API: Ошибка валидации
+        API -->> CLIENT: 400 Bad Request
+    else Валидные данные
+        WSERVICE ->> WREPO: CreateWorkspace(workspace)
+        WREPO ->> DB: BEGIN
+        WREPO ->> DB: INSERT INTO workspaces (name, type, hourly_rate, description, capacity) VALUES (?, ?, ?, ?, ?)
+        DB -->> WREPO: workspace_id
+        WREPO ->> DB: COMMIT
+        WREPO -->> WSERVICE: ID нового рабочего пространства
+        WSERVICE -->> API: Workspace
+        API -->> CLIENT: 201 Created + workspace data
+    end
+end
+@enduml

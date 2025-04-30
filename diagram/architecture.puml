@@ -1,0 +1,60 @@
+@startuml
+skinparam componentStyle uml2
+skinparam component {
+  BackgroundColor LightBlue
+  BorderColor Blue
+  ArrowColor Blue
+}
+
+package "Frontend Clients" {
+  [Web Client] as WebClient
+  [Telegram Bot Client] as TelegramClient
+}
+
+package "API Layer" {
+  [REST API] as RestAPI
+  [Middleware] as Middleware
+}
+
+package "Business Logic" {
+  [User Service] as UserService
+  [Booking Service] as BookingService
+  [Workspace Service] as WorkspaceService
+}
+
+package "Integrations" {
+  [Google Calendar Service] as GCalService
+  [Telegram Bot Service] as TelegramService
+}
+
+package "Data Layer" {
+  [User Repository] as UserRepo
+  [Booking Repository] as BookingRepo
+  [Workspace Repository] as WorkspaceRepo
+}
+
+database "PostgreSQL" as DB
+
+WebClient --> RestAPI
+TelegramClient --> TelegramService
+TelegramService --> BookingService
+TelegramService --> UserService
+
+RestAPI --> Middleware
+Middleware --> UserService
+Middleware --> BookingService
+Middleware --> WorkspaceService
+
+UserService --> UserRepo
+BookingService --> BookingRepo
+BookingService --> WorkspaceRepo
+WorkspaceService --> WorkspaceRepo
+
+BookingService --> GCalService
+BookingService --> TelegramService
+
+UserRepo --> DB
+BookingRepo --> DB
+WorkspaceRepo --> DB
+
+@enduml

@@ -1,0 +1,6 @@
+/go.sum
+*.log
+/logs/
+.env
+*.env
+config/credentials.json

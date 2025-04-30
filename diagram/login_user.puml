@@ -1,0 +1,43 @@
+@startuml
+skin rose
+participant "Клиент" as CLIENT
+participant "API" as API
+participant "UserService" as USERVICE
+participant "UserRepo" as UREPO
+participant "Database" as DB
+participant "TokenService" as TOKEN
+autonumber
+
+CLIENT ->> API: POST /api/v1/auth/login
+note right of CLIENT
+    Request Body: LoginUserReq
+    {
+      "email": string,
+      "password": string
+    }
+end note
+
+API ->> USERVICE: AuthenticateUser(email, password)
+
+USERVICE ->> UREPO: GetUserByEmail(email)
+UREPO ->> DB: SELECT * FROM users WHERE email = ?
+DB -->> UREPO: User (или null)
+UREPO -->> USERVICE: User (или ошибка)
+
+alt Пользователь не найден
+    USERVICE -->> API: Ошибка: пользователь не найден
+    API -->> CLIENT: 401 Unauthorized
+else Пользователь найден
+    USERVICE ->> USERVICE: VerifyPassword(password, user.PasswordHash)
+
+    alt Неверный пароль
+        USERVICE -->> API: Ошибка: неверные учетные данные
+        API -->> CLIENT: 401 Unauthorized
+    else Пароль верен
+        USERVICE ->> TOKEN: GenerateToken(user.ID, user.Email, user.Username)
+        TOKEN -->> USERVICE: JWT Token
+        USERVICE -->> API: User + Token
+        API -->> CLIENT: 200 OK + user data + token
+    end
+end
+@enduml

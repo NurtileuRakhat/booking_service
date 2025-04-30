@@ -1,0 +1,63 @@
+@startuml
+skin rose
+participant "Клиент" as CLIENT
+participant "API" as API
+participant "UserService" as USERVICE
+participant "UserRepo" as UREPO
+participant "Database" as DB
+participant "TokenService" as TOKEN
+autonumber
+
+CLIENT ->> API: POST /api/v1/auth/register
+note right of CLIENT
+    Request Body: RegisterUserReq
+    {
+      "email": string,
+      "username": string,
+      "name": string,
+      "surname": string,
+      "password": string
+    }
+end note
+
+API ->> USERVICE: RegisterUser(email, username, name, surname, password)
+
+USERVICE ->> USERVICE: Валидация данных
+
+alt Невалидные данные
+    USERVICE -->> API: Ошибка валидации
+    API -->> CLIENT: 400 Bad Request
+else Валидные данные
+    USERVICE ->> UREPO: CheckEmailExists(email)
+    UREPO ->> DB: SELECT COUNT(*) FROM users WHERE email = ?
+    DB -->> UREPO: count
+    UREPO -->> USERVICE: существует/не существует
+
+    alt Email уже существует
+        USERVICE -->> API: Ошибка: email уже занят
+        API -->> CLIENT: 409 Conflict
+    else Email свободен
+        USERVICE ->> UREPO: CheckUsernameExists(username)
+        UREPO ->> DB: SELECT COUNT(*) FROM users WHERE username = ?
+        DB -->> UREPO: count
+        UREPO -->> USERVICE: существует/не существует
+
+        alt Username уже существует
+            USERVICE -->> API: Ошибка: username уже занят
+            API -->> CLIENT: 409 Conflict
+        else Username свободен
+            USERVICE ->> USERVICE: HashPassword(password)
+            USERVICE ->> UREPO: CreateUser(email, username, name, surname, passwordHash)
+            UREPO ->> DB: BEGIN
+            UREPO ->> DB: INSERT INTO users (email, username, name, surname, password_hash) VALUES (?, ?, ?, ?, ?)
+            DB -->> UREPO: user_id
+            UREPO ->> DB: COMMIT
+            UREPO -->> USERVICE: ID нового пользователя
+            USERVICE ->> TOKEN: GenerateToken(userID, email, username)
+            TOKEN -->> USERVICE: JWT Token
+            USERVICE -->> API: User + Token
+            API -->> CLIENT: 201 Created + user data + token
+        end
+    end
+end
+@enduml
