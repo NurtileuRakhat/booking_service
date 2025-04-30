@@ -5,7 +5,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fd32a09e-7c4c-401f-94ae-73f190b8ee8d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cmd/api/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/cmd/api/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/infrastructure/external/telegram/adapter.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/infrastructure/external/telegram/adapter.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/infrastructure/repository/postgres/booking_repository.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/infrastructure/repository/postgres/booking_repository.go" afterDir="false" />
@@ -15,6 +14,7 @@
       <change beforePath="$PROJECT_DIR$/internal/ports/repository/user.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/ports/repository/user.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/usecase/booking/interface.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/usecase/booking/interface.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/usecase/booking/service.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/usecase/booking/service.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/internal/usecase/booking/service_test.go" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/usecase/user/interface.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/usecase/user/interface.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/internal/usecase/user/service.go" beforeDir="false" afterPath="$PROJECT_DIR$/internal/usecase/user/service.go" afterDir="false" />
     </list>

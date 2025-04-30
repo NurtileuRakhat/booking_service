@@ -3,4 +3,5 @@
 /logs/
 .env
 *.env
+.idea
 config/credentials.json
