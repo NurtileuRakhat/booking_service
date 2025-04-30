@@ -4,11 +4,13 @@ import (
 	"booking/internal/entity"
 	"booking/internal/ports/repository"
 	"booking/internal/usecase/booking"
+	"booking/internal/usecase/user"
 	"booking/internal/usecase/workspace"
+	"booking/pkg/logger"
 	"context"
+	"database/sql"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"booking/pkg/logger"
 	"strconv"
 	"strings"
 	"time"
@@ -78,6 +80,7 @@ func (t *TelegramAdapter) ListenForCallbacksAndCommands(
 	userRepo repository.UserRepository,
 	bookingService booking.Service,
 	workspaceService workspace.Service,
+	userService user.Service,
 ) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -90,19 +93,47 @@ func (t *TelegramAdapter) ListenForCallbacksAndCommands(
 			if update.Message.IsCommand() && update.Message.Command() == "start" {
 				args := strings.TrimSpace(update.Message.CommandArguments())
 				if args != "" && strings.Contains(args, "@") {
-					logger.TelegramInfo("Simulating user registration for email: %s, chatID: %d", args, chatID)
-					t.SendMessage(chatID, fmt.Sprintf("Hello! Registration with email %s was successful", args))
+					ctx := context.Background()
+					existingUser, err := userRepo.GetUserByEmail(ctx, args)
+					if err != nil && !strings.Contains(err.Error(), "not found") {
+						logger.TelegramError("Error checking user with email %s: %v", args, err)
+						t.SendMessage(chatID, "Ошибка при регистрации. Попробуйте позже.")
+						continue
+					}
+
+					if existingUser != nil {
+						existingUser.TelegramChatID = sql.NullInt64{
+							Int64: chatID,
+							Valid: true,
+						}
+						err = userRepo.UpdateUser(ctx, existingUser)
+						if err != nil {
+							logger.TelegramError("Error updating user %d with chatID %d: %v", existingUser.ID, chatID, err)
+							t.SendMessage(chatID, "Ошибка при обновлении данных. Попробуйте позже.")
+							continue
+						}
+						t.SendMessage(chatID, fmt.Sprintf("Привет! Вы успешно привязали аккаунт с email %s к Telegram", args))
+					} else {
+						newUser, err := userService.RegisterUser(ctx, args, "", chatID)
+						if err != nil {
+							logger.TelegramError("Error registering new user with email %s, chatID %d: %v", args, chatID, err)
+							t.SendMessage(chatID, "Ошибка при регистрации. Попробуйте позже.")
+							continue
+						}
+						logger.TelegramInfo("New user registered: email: %s, chatID: %d, userID: %d", args, chatID, newUser.ID)
+						t.SendMessage(chatID, fmt.Sprintf("Привет! Регистрация с email %s прошла успешно", args))
+					}
 					t.sendMainMenuInline(chatID)
 				} else {
-					t.SendMessage(chatID, "To register, use the command /start your@email.com")
+					t.SendMessage(chatID, "Для регистрации используйте команду /start your@email.com")
 				}
 				continue
 			}
 
 			user, err := userRepo.GetUserByTelegramChatID(context.Background(), chatID)
 			if err != nil || user == nil {
-				logger.TelegramInfo("User with chatID %d not found. Error: %v", chatID, err)
-				t.SendMessage(chatID, "You are not registered. Please enter /start your@email.com to register.")
+				logger.TelegramError("User with chatID %d not found. Error: %v", chatID, err)
+				t.SendMessage(chatID, "Вы не зарегистрированы. Введите /start your@email.com для регистрации.")
 				continue
 			}
 
@@ -112,7 +143,7 @@ func (t *TelegramAdapter) ListenForCallbacksAndCommands(
 			}
 
 			logger.TelegramInfo("Received unexpected text message from chat %d: %s", chatID, update.Message.Text)
-			t.SendMessage(chatID, "Unknown command or text.")
+			t.SendMessage(chatID, "Неизвестная команда или текст.")
 			t.sendMainMenuInline(chatID)
 			continue
 		}
@@ -311,7 +342,8 @@ func (t *TelegramAdapter) handleChooseWorkspace(chatID int64, data string, booki
 
 	if len(rows) == 0 {
 		t.SendMessage(chatID, "Unfortunately, there are no available days for this workspace in the next week.")
-		backButton := tgbotapi.NewInlineKeyboardButtonData("« Back to workspaces", fmt.Sprintf("choosews:%d", wsID))
+		backButton := tgbotapi.NewInlineKeyboardButtonData("« Back to workspaces", "back:workspaces")
+
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(backButton))
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("No available days for workspace %d this week.", wsID))
 		msg.ReplyMarkup = keyboard
@@ -321,8 +353,7 @@ func (t *TelegramAdapter) handleChooseWorkspace(chatID int64, data string, booki
 		}
 		return
 	}
-
-	backButton := tgbotapi.NewInlineKeyboardButtonData("« Back to workspaces", fmt.Sprintf("choosews:%d", wsID))
+	backButton := tgbotapi.NewInlineKeyboardButtonData("« Back to workspaces", "back:workspaces")
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(backButton))
 
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -378,9 +409,9 @@ func (t *TelegramAdapter) handleChooseDay(chatID int64, data string, bookingServ
 			continue
 		}
 
-		isAvailable := len(conflicts) == 0
+		isAvailable := conflicts
 
-		if isAvailable {
+		if !isAvailable {
 			timeStr := start.Format("15:04")
 			btn := tgbotapi.NewInlineKeyboardButtonData(timeStr, fmt.Sprintf("choosehour:%d:%s", wsID, start.Format("2006-01-02 15:04")))
 			rows = append(rows, tgbotapi.NewInlineKeyboardRow(btn))
@@ -388,7 +419,6 @@ func (t *TelegramAdapter) handleChooseDay(chatID int64, data string, bookingServ
 	}
 
 	if len(rows) == 0 {
-		t.SendMessage(chatID, "No available hours for this day and workspace.")
 		backButton := tgbotapi.NewInlineKeyboardButtonData("« Back to days", fmt.Sprintf("choosews:%d", wsID))
 		keyboard := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(backButton))
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("No available hours on %s for workspace %d.", date.Format("02 Jan 2006"), wsID))
@@ -443,8 +473,7 @@ func (t *TelegramAdapter) handleChooseHour(chatID int64, data string, userID int
 
 	end := start.Add(time.Hour)
 
-	booking, err := bookingService.CreateBooking(context.Background(), userID, wsID, start, end)
-
+	_, err = bookingService.CreateBooking(context.Background(), userID, wsID, start, end)
 	if err != nil {
 		logger.TelegramInfo("Error during booking creation for user %d, ws %d, start %s (GMT+5): %v", userID, wsID, start.Format("2006-01-02 15:04"), err)
 		errMsg := fmt.Sprintf("Error creating booking: %v", err)
@@ -463,16 +492,6 @@ func (t *TelegramAdapter) handleChooseHour(chatID int64, data string, userID int
 		return
 	}
 
-	confirmText := fmt.Sprintf(
-		"✅ Booking created successfully!\n\nBooking #%d\nDate: %s\nTime: %s — %s\nStatus: %s",
-		booking.ID,
-		FormatDate(booking.StartTime.In(locationGMT5)),
-		FormatTime(booking.StartTime.In(locationGMT5)),
-		FormatTime(booking.EndTime.In(locationGMT5)),
-		booking.Status,
-	)
-
-	t.SendBookingConfirmation(context.Background(), chatID, confirmText)
 	t.sendMainMenuInline(chatID)
 }
 

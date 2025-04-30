@@ -38,17 +38,31 @@ func (r *BookingRepository) CreateBooking(ctx context.Context, booking *entity.B
 	return id, nil
 }
 
-func (r *BookingRepository) GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) ([]entity.Booking, error) {
-	var bookings []entity.Booking
-	logger.Info("Checking conflicts for workspace_id: %d, time: %s - %s", workspaceID, start.Format(time.RFC3339), end.Format(time.RFC3339))
-	query := `SELECT * FROM bookings WHERE workspace_id = $1 AND status != 'cancelled' AND (
-		(start_time, end_time) OVERLAPS ($2, $3)
-	)`
-	err := r.db.SelectContext(ctx, &bookings, query, workspaceID, start, end)
+func (r *BookingRepository) GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) (bool, error) {
+	var capacity int
+	err := r.db.GetContext(ctx, &capacity, `SELECT capacity FROM workspaces WHERE id = $1`, workspaceID)
 	if err != nil {
-		logger.Error("Failed to check conflicts for workspace_id: %d, err: %v", workspaceID, err)
+		logger.Error("Failed to get capacity for workspace_id: %d, err: %v", workspaceID, err)
+		return false, err
 	}
-	return bookings, err
+
+	// 2. Считаем пересекающиеся брони (не отменённые)
+	var count int
+	query := `
+        SELECT COUNT(*) FROM bookings
+        WHERE workspace_id = $1
+          AND status != 'cancelled'
+          AND (start_time, end_time) OVERLAPS ($2, $3)
+    `
+	err = r.db.GetContext(ctx, &count, query, workspaceID, start, end)
+	if err != nil {
+		logger.Error("Failed to count overlapping bookings for workspace_id: %d, err: %v", workspaceID, err)
+		return false, err
+	}
+
+	logger.Info("Workspace_id: %d has %d overlapping bookings, capacity: %d", workspaceID, count, capacity)
+
+	return count >= capacity, nil
 }
 
 func (r *BookingRepository) ListBookingsByUser(ctx context.Context, userID int64) ([]entity.Booking, error) {

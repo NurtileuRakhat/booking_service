@@ -1,4 +1,3 @@
-// --- booking/cmd/api/main.go ---
 package main
 
 import (
@@ -10,6 +9,7 @@ import (
 	workspaceapi "booking/internal/ports/api/workspace"
 	bookingusecase "booking/internal/usecase/booking"
 	"booking/internal/usecase/pricing"
+	userusecase "booking/internal/usecase/user"
 	workspace2 "booking/internal/usecase/workspace"
 	"booking/pkg/logger"
 	"context"
@@ -44,6 +44,8 @@ func main() {
 	workspaceService := workspace2.NewWorkspaceService(workspaceRepo)
 	bookingRepo := postgres.NewBookingRepository(db)
 
+	userService := userusecase.NewUserService(userRepo)
+
 	bookingService := bookingusecase.NewBookingService(
 		bookingRepo,
 		userRepo,
@@ -70,7 +72,7 @@ func main() {
 
 	go func() {
 		logger.Info("Starting Telegram adapter listener")
-		cfg.TelegramAdapter.ListenForCallbacksAndCommands(userRepo, bookingService, workspaceService)
+		cfg.TelegramAdapter.ListenForCallbacksAndCommands(userRepo, bookingService, workspaceService, userService)
 		logger.Info("Telegram adapter listener stopped")
 	}()
 

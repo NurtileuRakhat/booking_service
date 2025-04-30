@@ -10,5 +10,6 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, user *entity.User) (int64, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByTelegramChatID(ctx context.Context, chatID int64) (*entity.User, error)
-	UpdateTelegramChatID(ctx context.Context, userID, chatID int64) error
+	LinkTelegramToUserByEmail(ctx context.Context, email string, chatID int64) error
+	UpdateUser(ctx context.Context, user *entity.User) error
 }

@@ -81,12 +81,38 @@ func (r *UserRepository) GetUserByTelegramChatID(ctx context.Context, chatID int
 	return &user, nil
 }
 
-func (r *UserRepository) UpdateTelegramChatID(ctx context.Context, userID, chatID int64) error {
-	_, err := r.db.ExecContext(ctx, "UPDATE users SET telegram_chat_id = $1 WHERE id = $2", chatID, userID)
+func (r *UserRepository) LinkTelegramToUserByEmail(ctx context.Context, email string, chatID int64) error {
+	query := `UPDATE users SET telegram_chat_id = $1 WHERE email = $2`
+	_, err := r.db.ExecContext(ctx, query, chatID, email)
+	return err
+}
+
+func (r *UserRepository) UpdateUser(ctx context.Context, user *entity.User) error {
+	query := `
+		UPDATE users
+		SET email = $1, 
+			username = $2, 
+			name = $3, 
+			surname = $4, 
+			telegram_chat_id = $5
+		WHERE id = $6
+	`
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		user.Email,
+		user.Username,
+		user.Name,
+		user.Surname,
+		user.TelegramChatID,
+		user.ID,
+	)
+
 	if err != nil {
-		logger.Error("Failed to update telegram_chat_id for user %d: %v", userID, err)
+		logger.Error("Failed to update user (id: %d): %v", user.ID, err)
 		return err
 	}
-	logger.Info("Updated telegram_chat_id for user %d to %d", userID, chatID)
+
+	logger.Info("User updated successfully (id: %d, email: %s)", user.ID, user.Email)
 	return nil
 }

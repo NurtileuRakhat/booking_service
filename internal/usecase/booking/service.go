@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -103,18 +102,13 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID int64, worksp
 	}
 
 	// Check availability using the repository method
-	conflicts, err := s.repo.GetConflictingBookings(ctx, workspaceID, start, end)
+	flag, err := s.repo.GetConflictingBookings(ctx, workspaceID, start, end)
 	if err != nil {
 		logger.Error("Error checking availability for ws %d, %s-%s: %v", workspaceID, start.String(), end.String(), err)
 		return nil, errors.New("failed to check availability")
 	}
-	if len(conflicts) > 0 {
-		conflictIDs := []string{}
-		for _, c := range conflicts {
-			conflictIDs = append(conflictIDs, fmt.Sprintf("#%d", c.ID))
-		}
-		logger.Error("Conflict found for ws %d, %s-%s with bookings: %s", workspaceID, start.String(), end.String(), strings.Join(conflictIDs, ", "))
-		return nil, errors.New("workspace is not available for the selected time due to existing bookings")
+	if flag {
+		return nil, errors.New("workspace is not available")
 	}
 
 	// Price
@@ -163,8 +157,8 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID int64, worksp
 	if s.telegramAdapter != nil {
 		if user.TelegramChatID.Valid {
 			chatID := user.TelegramChatID.Int64
-			locationGMT5 := time.FixedZone("GMT+5", 5*60*60)                                                       // Assuming GMT+5 is used for display timezone
-			msg := fmt.Sprintf("✅ Ваша бронь подтверждена!\n\nБронь #%d\nДата: %s\nВремя: %s — %s\nWorkspace: %s", // Changed %d to %s for workspace name, using workspace.Name
+			locationGMT5 := time.FixedZone("GMT+5", 5*60*60)
+			msg := fmt.Sprintf("✅ Booking created successfully!\n\nBooking #%d\nDate: %s\nTime: %s — %s\nStatus: %s",
 				booking.ID,
 				FormatDate(booking.StartTime.In(locationGMT5)),
 				FormatTime(booking.StartTime.In(locationGMT5)),
@@ -241,7 +235,7 @@ func (s *BookingService) CancelBooking(ctx context.Context, userID, bookingID in
 }
 
 // GetConflictingBookings возвращает список бронирований, конфликтующих с заданным интервалом.
-func (s *BookingService) GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) ([]entity.Booking, error) {
+func (s *BookingService) GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) (bool, error) {
 	logger.Info("Checking conflicts for workspace %d from %s to %s", workspaceID, start.String(), end.String()) // Too verbose
 	return s.repo.GetConflictingBookings(ctx, workspaceID, start, end)
 }

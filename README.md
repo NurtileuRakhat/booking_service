@@ -50,7 +50,7 @@ JWT_SECRET=your_jwt_secret
 
 ### 3. Миграции 
 ```
-psql -h localhost -U postgres -d booking_service -f internal/infrastructure/repository/migrations/001_initial_schema.sql
+psql -h localhost -U postgres -d booking_service -f internal/infrastructure/repository/migrations/01_init_tables.sql
 ```
 
 ### 4. Запуск через Docker Compose

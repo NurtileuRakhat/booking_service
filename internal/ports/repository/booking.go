@@ -8,7 +8,7 @@ import (
 
 type BookingRepository interface {
 	CreateBooking(ctx context.Context, booking *entity.Booking) (int64, error)
-	GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) ([]entity.Booking, error)
+	GetConflictingBookings(ctx context.Context, workspaceID int64, start, end time.Time) (bool, error)
 	ListBookingsByUser(ctx context.Context, userID int64) ([]entity.Booking, error)
 	CancelBooking(ctx context.Context, bookingID int64, penalty float64) error
 	GetBookingByID(ctx context.Context, bookingID int64) (*entity.Booking, error)

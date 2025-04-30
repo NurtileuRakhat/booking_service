@@ -20,6 +20,10 @@ type Response struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type RefreshTokenResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 func NewAuthHandler(userRepo repository.UserRepository) *AuthHandler {
 	return &AuthHandler{userRepo: userRepo}
 }
@@ -153,15 +157,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	newRefreshToken, err := middleware.GenerateRefreshToken(user)
-	if err != nil {
-		logger.Error("Could not generate refresh token: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate refresh token"})
-		return
-	}
-
-	c.JSON(http.StatusOK, Response{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
+	c.JSON(http.StatusOK, RefreshTokenResponse{
+		AccessToken: newAccessToken,
 	})
 }
