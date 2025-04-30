@@ -28,7 +28,7 @@
 ### 1. Клонируйте репозиторий
 
 ```sh
-git clone <???>
+git clone https://github.com/NurtileuRakhat/booking_service
 ```
 
 ### 2. Настройте переменные окружения
