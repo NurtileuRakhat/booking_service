@@ -70,12 +70,7 @@ API будет доступен на `http://localhost:8080`.
 go test -v ./internal/usecase/...
 ```
 
-## Документация API
-
-- Swagger: [http://localhost:8080/swagger/index.html](http://localhost:8080/swagger/index.html) (если настроено)
-- Примеры запросов — см. коллекцию Postman в папке `docs/`
-
 ## Контакты
 
-- Автор: Anuar Oralov
-- Telegram: [@anuaroralov](https://t.me/anuaroralov)
+- Автор:Rakhat Nurtileu
+- Telegram: [@nurtileurk]
